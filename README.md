@@ -1,5 +1,8 @@
 # HF-QRC: Hybrid Feedback Quantum Reservoir Computing for Volatility Forecasting
 
+
+[![Launch on qBraid](https://qbraid-static.s3.amazonaws.com/logos/Launch_on_qBraid_white.png)](https://account.qbraid.com?gitHubUrl=https://github.com/Qyngshuk08/qrc-volatility-gic2026)
+
 **Team:** Qudit Creons
 **Challenge:** qBraid × MITRE × JonesTrading | GIC 2026
 **Track:** Track A — Financial Volatility Prediction
