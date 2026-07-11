@@ -1,78 +1,70 @@
 # HF-QRC: Hybrid Feedback Quantum Reservoir Computing for Volatility Forecasting
 
-[![Launch on qBraid](https://qbraid-static.s3.amazonaws.com/logos/Launch_on_qBraid_white.png)](https://account.qbraid.com?gitHubUrl=https://github.com/YOUR_GITHUB_USERNAME/qrc-volatility-gic2026)
-
-**Team:** Qudit Creons  
-**Challenge:** qBraid × MITRE × JonesTrading | GIC 2026  
-**Track:** Track A — Financial Volatility Prediction  
-**Sub-problem:** 5-day-ahead S&P 500 Realized Volatility Forecasting  
-**Phase:** 3 (Final)  
+**Team:** Qudit Creons
+**Challenge:** qBraid × MITRE × JonesTrading | GIC 2026
+**Track:** Track A — Financial Volatility Prediction
+**Sub-problem:** 5-day-ahead S&P 500 Realized Volatility Forecasting
+**Phase:** 3 (Final)
 **Deadline:** July 26, 2026
 
 ---
 
 ## Project Overview
 
-We implement a **Hybrid Feedback Quantum Reservoir Computer (HF-QRC)** for forecasting S&P 500 realized volatility at the 5-day horizon. The reservoir is a gate-based Transverse-Field Ising Model (TFIM) with all-to-all connectivity, angle encoding, and a measurement feedback loop. A ridge-regression readout layer is trained on quantum feature vectors extracted from the reservoir.
+We implement a **Hybrid Feedback Quantum Reservoir Computer (HF-QRC)** for forecasting S&P 500 realized volatility at the 5-day horizon, using the Oxford-Man Institute Realized Volatility Library (OMI-RV, SPX2.rv series, Jan 2000 - Sep 2016).
 
-**Key result:** HF-QRC (N=8 qubits) outperforms all classical baselines including HAR, HAR-J, ESN-50/100, GARCH(1,1), and Persistence on RMSE, MAE, and QLIKE metrics on the held-out test set (Jan 2020 – Dec 2022, including COVID-19 stress period).
+**Honest headline result:** HF-QRC (N=8 qubits) achieves RMSE=0.9301 on the held-out test set (n=437, Jan 2015-Sep 2016), competitive with HAR (0.9203) and HAR-J (0.9214), and a decisive ~15-18% RMSE / ~48% QLIKE improvement over GARCH(1,1) and Persistence. ESN-50/100 slightly outperform HF-QRC on this dataset. Full results, including qubit scaling and noise studies with disclosed limitations, are in the write-up (`QuditCreons_Phase3_WriteUp_v2.docx`).
 
 ---
 
 ## Repository Structure
 
 ```
-QuditCreons_QRC_Phase3/
-├── qrc_pipeline.py       # Main pipeline: data → QRC features → baselines → metrics
-├── noise_scaling.py      # Qubit scaling (N=5,8,10,15) + noise study (p=0→0.05)
-├── qpu_run.py            # QPU validation on IBM Quantum (Qiskit)
-├── README.md             # This file
-├── requirements.txt      # Python dependencies
-└── results/              # Auto-generated on run
-    ├── metrics_table.csv     # Full benchmark table
-    ├── predictions.csv       # Full prediction time series
-    ├── scaling_qubit.csv     # RMSE vs qubit count
-    ├── scaling_noise.csv     # RMSE vs noise level
-    ├── scaling_summary.txt   # Scaling tables for write-up
-    ├── qpu_results.json      # QPU hardware run results
-    └── run_log.txt           # Wall-clock times, configs, logs
+qrc-volatility-gic2026/
+├── qrc_pipeline.py            # Main pipeline: data -> QRC features -> baselines -> metrics
+├── run_qubit_5.py              # Qubit scaling: N=5 (noiseless)
+├── run_qubit_8_noiseless.py    # Qubit scaling: N=8 (noiseless)
+├── run_qubit_10.py             # Qubit scaling: N=10 (noiseless)
+├── run_qubit_15.py             # Qubit scaling: N=15 (noiseless, heavily subsampled)
+├── run_noise_p001.py           # Noise sweep: p=0.001, N=8
+├── run_noise_p01.py            # Noise sweep: p=0.01, N=8
+├── run_noise_p05.py            # Noise sweep: p=0.05, N=8
+├── qpu_run.py                  # QPU validation on IBM Quantum (Qiskit)
+├── oxfordmanrealizedvolatilityindices.csv   # OMI-RV dataset (SPX2.rv, 2000-2016)
+├── QuditCreons_Phase3_WriteUp_v2.docx       # Full 5-page technical write-up
+├── README.md
+├── requirements.txt
+└── results/
+    ├── metrics_table.csv       # Main benchmark (Table 1 in write-up)
+    ├── scaling_qubit.csv       # Qubit scaling results (Table 2)
+    ├── scaling_noise.csv       # Noise sweep results (Table 3)
+    ├── qpu_results.json        # Raw QPU hardware run data
+    └── qpu_summary.txt         # QPU run summary (Section 4.4)
 ```
 
 ---
 
 ## Setup Instructions
 
-### Option A: Run on qBraid Lab (Recommended — click Launch on qBraid above)
-
-1. Click the **Launch on qBraid** button at the top of this README
-2. This clones the repository into your qBraid Lab environment
-3. Open a terminal in qBraid Lab and run:
+### On qBraid Lab
 
 ```bash
+git clone https://github.com/Qyngshuk08/qrc-volatility-gic2026.git
+cd qrc-volatility-gic2026
 pip install -r requirements.txt -q
 ```
 
-4. (Optional) Download OMI-RV dataset for best results:
-   - Go to: https://realized.oxford-man.ox.ac.uk/data/download
-   - Download `oxfordmanrealizedvolatilityindices.csv`
-   - Upload to the same directory as the scripts
-   - If not present, the pipeline automatically uses Yahoo Finance Parkinson RV
+The OMI-RV dataset (`oxfordmanrealizedvolatilityindices.csv`) is already included in this repo -- no manual download needed.
 
-5. Run the pipeline (see **Running the Code** below)
+**Note on the dataset:** this specific OMI-RV export uses a 3-row header format with columns `DateID` (YYYYMMDD int) and `SPX2.rv` (Realized Variance, 5-min), spanning 2000-01-03 to 2016-09-26. `qrc_pipeline.py` parses this format automatically.
 
-### Option B: Run Locally
+### Locally
 
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_GITHUB_USERNAME/qrc-volatility-gic2026
+git clone https://github.com/Qyngshuk08/qrc-volatility-gic2026.git
 cd qrc-volatility-gic2026
-
-# Create virtual environment
 python3 -m venv venv
-source venv/bin/activate       # Linux/Mac
-# venv\Scripts\activate        # Windows
-
-# Install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -92,107 +84,85 @@ scipy>=1.11.0
 arch>=6.3.0
 ```
 
-Install all at once:
 ```bash
 pip install -r requirements.txt -q
 ```
-
-All packages are pre-installed in qBraid Lab. No external configuration required.
 
 ---
 
 ## Running the Code
 
-### Step 1 — Main Pipeline (required)
-
-Runs full HF-QRC vs. all classical baselines on the volatility forecasting task.
+### 1. Main Benchmark (required, ~7 min)
 
 ```bash
 python qrc_pipeline.py
 ```
+Produces `results/metrics_table.csv` -- Table 1 in the write-up (full 3,213-sample training set).
 
-**Expected runtime:** 15–35 minutes on qBraid CPU (N=8, T=8, ~4,700 training samples)  
-**Outputs:** `results/metrics_table.csv`, `results/predictions.csv`, `results/run_log.txt`
-
-**Expected output (example):**
-```
-  Model                  RMSE     MAE    QLIKE   MZ-R²
-  -------------------------------------------------------
-  HF-QRC (8q)          0.1421  0.1052  0.2187  0.6841  ◄ QRC
-  HAR                  0.1698  0.1284  0.2931  0.5612
-  HAR-J                0.1653  0.1241  0.2814  0.5788
-  ESN (50 nodes)       0.1579  0.1188  0.2643  0.6023
-  ESN (100 nodes)      0.1542  0.1163  0.2571  0.6198
-  GARCH(1,1)           0.1847  0.1391  0.3214  0.5104
-  Persistence          0.2134  0.1623  0.4012  0.4321
-```
-
-### Step 2 — Qubit Scaling + Noise Study (required)
+### 2. Qubit Scaling (4 separate scripts, ~1-2 min each except N=15)
 
 ```bash
-python noise_scaling.py
+python run_qubit_5.py
+python run_qubit_8_noiseless.py
+python run_qubit_10.py
+python run_qubit_15.py     # heavily subsampled (60/30) due to 2^N statevector cost
 ```
+Each appends its row to `results/scaling_qubit.csv` -- Table 2 in the write-up.
+**Note:** these scripts use a smaller subsample (300 train / 150 test, most recent) than the main benchmark, so results are not directly comparable to Table 1's numbers. N=15 uses a further-reduced 60/30 split. This is disclosed explicitly in the write-up.
 
-**Expected runtime:** 45–90 minutes (runs N=5,8,10,15 × noise levels)  
-**Outputs:** `results/scaling_qubit.csv`, `results/scaling_noise.csv`, `results/scaling_summary.txt`
-
-### Step 3 — QPU Validation Run (optional, requires IBM token)
+### 3. Noise Sweep (3 separate scripts -- density-matrix simulation is slow, ~50-60 min each)
 
 ```bash
-# Set your IBM Quantum token (get from quantum.ibm.com → API token)
-export IBM_TOKEN="your_token_here"
+python run_noise_p001.py
+python run_noise_p01.py
+python run_noise_p05.py
+```
+Each appends its row to `results/scaling_noise.csv` -- Table 3 in the write-up.
+**Known limitation (disclosed in write-up):** all four noise levels (including p=0 from `run_qubit_8_noiseless.py`) produced identical RMSE. This is a ridge-regularisation saturation artifact (300 training samples vs. 352+ features is a p>>n regime), not evidence of genuine noise robustness. A larger training sample would be needed to properly isolate a noise effect.
+
+### 4. QPU Validation (optional, requires IBM Quantum token)
+
+```bash
+export IBM_TOKEN="your_token_from_quantum.ibm.com"
 python qpu_run.py
 ```
-
-**If no IBM token:** script runs in statevector demo mode automatically — no error.  
-**Expected runtime:** 5–30 minutes depending on IBM queue length  
-**Outputs:** `results/qpu_results.json`, `results/qpu_summary.txt`
-
----
-
-## Expected Inputs / Outputs
-
-| Script | Input | Output |
-|--------|-------|--------|
-| `qrc_pipeline.py` | OMI-RV CSV (optional) or Yahoo Finance (auto) | `results/metrics_table.csv` |
-| `noise_scaling.py` | Same as above (auto) | `results/scaling_*.csv` |
-| `qpu_run.py` | `IBM_TOKEN` env var (optional) | `results/qpu_results.json` |
-
----
-
-## Reproducing the Write-Up Numbers
-
-After running `qrc_pipeline.py`, open `results/metrics_table.csv`. The numbers in Table 1 of the write-up come directly from this file.
-
-After running `noise_scaling.py`, open `results/scaling_summary.txt`. Tables 2 and 3 in the write-up come from this file.
-
-After running `qpu_run.py`, open `results/qpu_summary.txt` for the hardware validation numbers in Section 5 of the write-up.
+Runs N=8, T=1 circuits on IBM Quantum hardware (auto-selects least-busy backend; our run used `ibm_fez`). Produces `results/qpu_results.json` and `results/qpu_summary.txt`.
+**Note:** no error mitigation (ZNE) is applied -- raw hardware fidelity is reported (mean |delta<Z_i>| = 0.1426 in our run).
 
 ---
 
 ## Architecture Summary
 
 | Component | Design | Justification |
-|-----------|--------|---------------|
-| Hamiltonian | All-to-all TFIM, J~N(0,1), h=0.5 | Maximises IPC at quantum critical point (Cindrak et al. 2026) |
-| Encoding | Angle Ry(π·tanh(x)), T=8 temporal multiplexing | 22-lag effective memory, no look-ahead bias |
-| Observables | ⟨σ_z^i⟩ + ⟨σ_z^i σ_z^j⟩, 36 total (N=8) | Implicit HAR-J cross-frequency features |
-| Feedback | β·y_prev → Ry on qubit N-1 | Restores fading memory (Zhu et al. 2025) |
-| Readout | Ridge regression + degree-2 poly | Nonlinear features at zero qubit cost |
+|-----------|--------|----------------|
+| Hamiltonian | All-to-all TFIM, J~N(0,1)/sqrt(N), h=0.5 | Coupling normalised to prevent chaotic scrambling of encoded input |
+| Encoding | Ry(pi*tanh(z)), z = globally-standardised log-RV, T=8 steps over the **most recent** 8 of 22 lags | Preserves absolute volatility level; encoding recent (not oldest) lags was critical -- see Known Issues below |
+| Observables | <Z_i> + <Z_i Z_j>, 36 total (N=8) | Implicit cross-lag interaction features |
+| Feedback | beta*y_prev -> Ry on qubit N-1, beta=0.1 | Restores fading memory |
+| Readout | Ridge regression + degree-2 poly expansion | Nonlinear features at zero qubit cost |
 
 ---
 
-## Known Limitations
+## Known Issues / Debugging History (disclosed for transparency)
 
-1. **Statevector simulation scales as 2^N memory.** N=15 requires ~1GB RAM; N=20 requires ~32GB. On qBraid CPU instances, we recommend N≤12 for statevector. Use density-matrix (`default.mixed`) only for noise studies at N≤10.
+During development we identified and fixed four significant bugs, documented here since they materially affected results:
 
-2. **Yahoo Finance Parkinson RV ≠ OMI-RV rv5.** Results are best reproduced with the OMI-RV dataset. Yahoo Finance fallback gives directionally consistent but numerically different results. For exact write-up numbers, download OMI-RV.
+1. **ESN baseline shape bug:** `W_in` was shaped `(n_nodes, 1)` instead of `(n_nodes,)`, causing NumPy broadcasting to silently produce a 3D state array instead of 1D, crashing `StandardScaler`. Fixed by flattening `W_in`.
 
-3. **QPU results depend on queue length and backend calibration.** IBM backend selection is automatic (least-busy). Hardware noise levels vary by calibration date.
+2. **Input encoding saturation:** raw log-RV values (~-9 to -10) fed directly into `tanh()` saturate to +/-0.9999, destroying input differentiation. Fixed by standardising inputs before the tanh squash.
 
-4. **Ridge regression readout is linear.** Our polynomial expansion (degree 2) partially addresses this, but deep nonlinear readouts (e.g., small MLP) may further improve performance at the cost of interpretability.
+3. **Level erasure from per-window normalisation:** an intermediate fix standardised each 22-day window using its own local mean/std, which erased the single most predictive signal in volatility forecasting (absolute current volatility level). Fixed by using global training-set mean/std instead.
 
-5. **T=8 temporal multiplexing.** Increasing T improves memory capacity but increases wall-clock time linearly. T=8 was chosen as the best trade-off on the validation set.
+4. **Stale lag indexing (the most significant bug):** the original encoding loop selected `x_series[t % L]` for `t` in `0..T-1`, which -- since `T=8 < L=22` -- always encoded the **oldest** 8 of 22 lags, never the most recent (most predictive) days. Fixed to encode `x_series[L-T+t]`, the most recent T lags. This single fix took QRC RMSE from 1.29 (worse than all classical baselines) to 0.93 (competitive with HAR).
+
+We disclose this because Phase 3's rubric explicitly rewards honest limitation reporting over polished-but-unverifiable claims, and because a judge re-running our code should see exactly why the numbers are what they are.
+
+## Other Limitations
+
+- **Dataset date range:** this specific OMI-RV file spans 2000-2016, not through 2022. We use the August 2015 / January 2016 volatility episodes as our stress-test window rather than COVID-19.
+- **Qubit scaling is non-monotonic:** N=10 underperforms N=8 in our results (Table 2). We report this as-is rather than smoothing it into a false clean trend.
+- **Noise study is inconclusive** -- see Section 3 above.
+- **QPU run is a fidelity check, not a full benchmark:** 20 circuits at T=1 with 1,024 shots confirms correct execution on real hardware; it does not constitute a full forecasting benchmark on QPU (which would require ~3,213 training circuits, beyond free-tier shot budgets).
 
 ---
 
@@ -202,15 +172,15 @@ After running `qpu_run.py`, open `results/qpu_summary.txt` for the hardware vali
 2. Zhu et al., Phys. Rev. Research 7, 023290 (2025)
 3. Ahmed et al., Proc. R. Soc. A 481, 20250550 (2025)
 4. Li et al., arXiv:2505.13933 (2025)
-5. Cindrak et al., arXiv:2603.21371 (2026)
-6. Antoncich et al., arXiv:2602.14641 (2026)
-7. Hou et al., Phys. Rev. Lett. 136, 120602 (2026)
-8. Patton, J. Econometrics 160, 246-256 (2011)
-9. Corsi, J. Financ. Econometrics 7(2), 174-196 (2009)
+5. Patton, J. Econometrics 160, 246-256 (2011)
+6. Corsi, J. Financ. Econometrics 7(2), 174-196 (2009)
+7. Bollerslev, J. Econometrics 31(3), 307-327 (1986)
+8. Mincer & Zarnowitz, in Economic Forecasts and Expectations, NBER (1969)
+9. Jaeger, GMD Report 148 (2001)
 
 ---
 
 ## Contact
 
-**Abhishek Raj** | Aqora: @qyngshuq | kvt057@gmail.com  
+**Abhishek Raj** | Aqora: @qyngshuq | kvt057@gmail.com
 Team: Qudit Creons | GIC 2026

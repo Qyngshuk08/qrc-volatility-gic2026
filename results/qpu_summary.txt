@@ -1,0 +1,17 @@
+=======================================================
+QPU VALIDATION SUMMARY
+  Backend:            ibm_fez
+  Qubits used:        8
+  Shots per circuit:  1024
+  Circuits run:       20
+  Circuit depth:      ~24 gates (pre-transpile)
+  Wall-clock time:    28.2s
+
+  Expectation value fidelity (hardware vs. statevector):
+  Mean |Delta<Z_i>|: 0.1426
+  Max  |Delta<Z_i>|: 0.3333
+
+  Interpretation:
+  Hardware noise causes ~14.3% average deviation
+  from noiseless simulation per observable.
+=======================================================

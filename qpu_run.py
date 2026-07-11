@@ -130,7 +130,7 @@ def run_on_ibm(circuits, shots, token):
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2
     from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
-    service = QiskitRuntimeService(channel="ibm_quantum", token=token)
+    service = QiskitRuntimeService(channel="ibm_quantum_platform", token=token)
 
     # Find least-busy backend with enough qubits
     backends = service.backends(

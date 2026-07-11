@@ -54,9 +54,9 @@ CFG = {
     "feedback_scale": 0.1,     # feedback injection scale beta
     "horizon":        5,       # forecast horizon (trading days)
     "lags":           22,      # input window (1 trading month)
-    "ridge_alphas":   [1e-4, 1e-3, 1e-2, 0.1, 1.0, 10.0],
-    "train_end":      "2017-12-31",
-    "val_end":        "2019-12-31",
+    "ridge_alphas":   [1e-4, 1e-3, 1e-2, 0.1, 1.0, 10.0, 50.0, 100.0, 300.0],
+    "train_end":      "2012-12-31",  # NOTE: this OMI-RV file only spans 2000-01-03 to 2016-09-26
+    "val_end":        "2014-12-31",  # (no COVID period in this file). Test = 2015-01-01 to 2016-09-26.
     # test: 2020-01-01 to 2022-12-31 (COVID + post-pandemic regimes)
     "random_seed":    42,
     "poly_degree":    2,       # polynomial feature expansion degree
@@ -73,30 +73,42 @@ def log(msg):
 # 1. DATA LOADING
 # ════════════════════════════════════════════════════════════════════════════
 def load_omirv():
-    """Load Oxford-Man Institute Realized Volatility Library."""
+    """
+    Load Oxford-Man Institute Realized Volatility Library.
+
+    NOTE: this file uses a 3-row header (index name / metric name / column code)
+    with a flat DateID column (YYYYMMDD int), not the row-per-symbol format.
+    Confirmed columns for SPX: 'SPX2.rv' (Realized Variance, 5-min),
+    'SPX2.rv5ss' (5-min, 1-min subsampled). Data spans 2000-01-03 to 2016-09-26
+    for this specific file — NOT through 2022. Update train/val/test splits
+    accordingly if using this exact file.
+    """
     candidates = [
         "oxfordmanrealizedvolatilityindices.csv",
         "data/oxfordmanrealizedvolatilityindices.csv",
         os.path.expanduser("~/oxfordmanrealizedvolatilityindices.csv"),
     ]
     for path in candidates:
-        if os.path.exists(path):
-            log(f"Loading OMI-RV from {path}")
-            df = pd.read_csv(path, index_col=0, parse_dates=True, low_memory=False)
-            # Filter to SPX rows
-            if "Symbol" in df.columns:
-                df = df[df["Symbol"].str.strip() == ".SPX"]
-            elif ".SPX" in str(df.index[0]):
-                pass  # already filtered by index
-            # Find rv5 column
-            for col in ["rv5", "rv5_ss", "RV5", "rv5ss", "RV5_SS"]:
-                if col in df.columns:
-                    rv = df[col].dropna().astype(float)
-                    rv.index = pd.to_datetime(rv.index)
-                    rv = rv.sort_index()
-                    rv = rv["2000-01-01":"2022-12-31"]
-                    log(f"OMI-RV loaded: {len(rv)} obs, cols used: {col}")
-                    return rv, "OMI-RV (rv5, 5-min sub-sampled)"
+        if not os.path.exists(path):
+            continue
+        log(f"Loading OMI-RV from {path}")
+        df = pd.read_csv(path, skiprows=[0, 1], header=0, low_memory=False)
+        log(f"DEBUG: shape={df.shape}, first cols={list(df.columns[:6])}")
+
+        if "DateID" not in df.columns:
+            log("DEBUG: 'DateID' column not found — unexpected file format, falling back")
+            return None, None
+
+        for col in ["SPX2.rv", "SPX2.rv5ss", "SPX.rv", "SPX.rv5ss"]:
+            if col in df.columns:
+                rv = df[["DateID", col]].dropna()
+                dates = pd.to_datetime(rv["DateID"].astype(int).astype(str), format="%Y%m%d")
+                rv = pd.Series(rv[col].astype(float).values, index=dates).sort_index()
+                log(f"OMI-RV loaded: {len(rv)} obs, col={col}, "
+                    f"range={rv.index[0].date()} to {rv.index[-1].date()}")
+                return rv, f"OMI-RV ({col})"
+
+        log(f"DEBUG: none of the expected SPX columns found in {list(df.columns[:20])}...")
     return None, None
 
 
@@ -185,7 +197,7 @@ def split(X_raw, X_har, X_harj, y, dates, cfg):
 # ════════════════════════════════════════════════════════════════════════════
 # 3. QUANTUM RESERVOIR (PennyLane)
 # ════════════════════════════════════════════════════════════════════════════
-def build_qrc(cfg, noise_p=0.0):
+def build_qrc(cfg, noise_p=0.0, global_mean=0.0, global_std=1.0):
     """
     Build HF-QRC using PennyLane.
     Returns: feature_extractor function (x_series -> feature_vector)
@@ -211,6 +223,7 @@ def build_qrc(cfg, noise_p=0.0):
     J = rng.standard_normal((N, N))
     J = (J + J.T) / 2
     np.fill_diagonal(J, 0)
+    J = J / np.sqrt(N)   # normalize coupling so evolution stays near edge-of-chaos, not deeply scrambling
 
     # ── PennyLane device ─────────────────────────────────────────────────
     if noise_p > 0:
@@ -263,13 +276,14 @@ def build_qrc(cfg, noise_p=0.0):
 
         for t in range(T):
             # Pick lag to encode (cycle through lags)
-            x_in = float(x_series[t % L])
+            x_in  = float(x_series[L - T + t])  # most recent T lags, not oldest T lags
+            x_std = (x_in - global_mean) / global_std  # global normalization preserves absolute vol level
             # Angle encoding: pi * tanh squashes to (-pi, pi)
-            enc_angle = float(np.pi * np.tanh(x_in))
+            enc_angle = float(np.pi * np.tanh(x_std))
             fb_angle  = float(np.pi * np.tanh(fb * feedback))
 
             # Build per-qubit angles (repeated encoding with offset)
-            angles = np.array([enc_angle + 0.1 * i * x_in
+            angles = np.array([enc_angle + 0.1 * i * x_std
                                 for i in range(N - 1)])
 
             evs = reservoir_step(angles, fb_angle)
@@ -320,7 +334,7 @@ class ESN:
         W   = rng.standard_normal((n_nodes, n_nodes))
         rho = np.max(np.abs(np.linalg.eigvals(W)))
         self.W    = W * (spectral_radius / rho)
-        self.W_in = rng.standard_normal((n_nodes, 1)) * 0.1
+        self.W_in = rng.standard_normal(n_nodes) * 0.1   # 1-D, not (n_nodes,1)
         self.n    = n_nodes
         self.sc   = StandardScaler()
         self.rdg  = RidgeCV(alphas=[1e-4,1e-3,1e-2,0.1,1.,10.])
@@ -330,9 +344,9 @@ class ESN:
         for row in X:
             h = np.zeros(self.n)
             for v in row:
-                h = np.tanh(self.W @ h + self.W_in * v)
+                h = np.tanh(self.W @ h + self.W_in * float(v))  # stays 1-D
             states.append(h)
-        return np.array(states)
+        return np.array(states)  # shape: (n_samples, n_nodes)
 
     def fit(self, X, y):
         S = self._run(X)
@@ -439,7 +453,10 @@ def main():
     # ── Build QRC ──────────────────────────────────────────────────────────
     log("\n[3/6] Building quantum reservoir (PennyLane)...")
     t_qrc = time.time()
-    extractor, n_feat = build_qrc(CFG, noise_p=0.0)
+    g_mean = float(np.mean(tr_raw))   # global stats from TRAIN ONLY (no leakage)
+    g_std  = float(np.std(tr_raw)) + 1e-8
+    log(f"  Global log-RV stats (train): mean={g_mean:.4f}, std={g_std:.4f}")
+    extractor, n_feat = build_qrc(CFG, noise_p=0.0, global_mean=g_mean, global_std=g_std)
 
     # ── Extract features ───────────────────────────────────────────────────
     log("\n[4/6] Extracting QRC features...")

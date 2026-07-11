@@ -1,0 +1,5 @@
+n_qubits,noise_p,RMSE,ridge_alpha,wall_clock_s,circuit_depth,n_train,n_test,note
+5,0.0,0.8721,300.0,20.2,15,300,150,
+8,0.0,0.8102,300.0,46.6,24,300,150,
+10,0.0,0.8373,300.0,71.5,30,300,150,
+15,0.0,0.6893,300.0,77.2,45,60,30,heavily subsampled due to 2^N statevector cost
